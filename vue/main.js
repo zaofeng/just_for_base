@@ -3,86 +3,94 @@ import axios from 'axios'
 import qs from 'qs'
 let axiosIns = axios.create({});
 
-if (process.env.NODE_ENV == 'development') {
-    axiosIns.defaults.baseURL = '***';
-} else if (process.env.NODE_ENV == 'debug') {
-    axiosIns.defaults.baseURL = '***';
-} else if (process.env.NODE_ENV == 'production') {
-    axiosIns.defaults.baseURL = '***';
+const axiosIns = axios.create()
+if (process.env.NODE_ENV === 'development') {
+  axiosIns.defaults.baseURL = 'http://192.168.*.*:8080'
 }
-
-axiosIns.defaults.headers.post['X-Requested-With'] = 'XMLHttpRequest';
-axiosIns.defaults.headers.get['X-Requested-With'] = 'XMLHttpRequest';
-axiosIns.defaults.responseType = 'json';
-axiosIns.defaults.transformRequest = [function (data) {
-    //数据序列化
-    return qs.stringify(data);
-}
-];
-axiosIns.defaults.validateStatus = function (status) {
-    return true;
-};
+// 添加请求拦截器
 axiosIns.interceptors.request.use(function (config) {
-    //配置config
-    config.headers.Accept = 'application/json';
-    // config.headers.System = 'vue';
-    // let token = Vue.localStorage.get('token');
-    // if(token){
-    //     config.headers.Token = token;
-    // }
-    return config;
-});
-axiosIns.interceptors.response.use(function (response) {
-    let data = response.data;
-    let status = response.status;
-    if (status === 200) {
-        return Promise.resolve(response);
-    } else {
-        return Promise.reject(response);
-    }
-});
+  // 在发送请求之前做些什么
+  // config.headers['Content-Type'] = 'application/x-www-form-urlencoded'
+  let token = window.localStorage.getItem('token')
+  // 把token放到参数里面
+  // if (token && config.params) {
+  //   config.params.token = token
+  // } else {
+  //   config.params = { 'token': token }
+  // }
+  // 把token放到header里面
+  if (token) {
+    config.headers['token'] = token
+  }
+  return config
+}, function (error) {
+  // 对请求错误做些什么
+  console.log('错误的传参')
+  return Promise.reject(error)
+})
 
-let ajaxMethod = ['get', 'post'];
-let api = {};
-ajaxMethod.forEach((method)=> {
-    //数组取值的两种方式
-    api[method] = function (uri, data, config) {
-        return new Promise(function (resolve, reject) {
-            axiosIns[method](uri, data, config).then((response)=> {
-                /*根据后台数据进行处理
-                 *1 code===200   正常数据+错误数据     code!==200   网络异常等
-                 *2 code===200   正常数据     code!==200   错误数据+网络异常等
-                 * 这里使用的是第一种方式
-                 * ......
-                 */
-                if (response.data.StatusCode) {
-                    //toast封装：  参考ele-mint-ui
-                    Toast({
-                        message: response.data.Message,
-                        position: 'top',
-                        duration: 2000
-                    });
-                    if (response.data.Message === '未登录') {
-                        Toast({
-                            message: response.data.Message,
-                            position: '',
-                            duration: 2000
-                        });
-                        //使用vue实例做出对应行为  change state or router
-                        //instance.$store.commit('isLoginShow',true);
-                    }
-                } else {
-                    resolve(response);
-                }
-            }).catch((response)=> {
-                //reject response
-                //alert('xiuxiu，限你10分钟到我面前来,不然...');
-            })
-        })
-    }
-});
+axiosIns.interceptors.response.use((res) => {
+  // 对响应数据做些事
+  if (!res.data) {
+    return Promise.reject(res)
+  }
+  return res
+}, (error) => {
+  return Promise.reject(error)
+})
+const ajaxMethod = ['get', 'post']
+const api = {}
+ajaxMethod.forEach((method) => {
+  api[method] = function (uri, data, config) {
+    return new Promise(function (resolve, reject) {
+      axiosIns[method](uri, data, config).then((response) => {
+        if (response.data.code === 500) {
+          instance.$notify({
+            title: '温馨提示',
+            message: response.data.msg,
+            position: 'top-right'
+          })
+        } else if (response.data.code === 2000) {
+          instance.$notify({
+            title: '参数错误',
+            message: response.data.msg,
+            position: 'top-right'
+          })
+        } else if (response.data.code === 401) {
+          instance.$notify({
+            title: '温馨提示',
+            message: '登录信息失效，请重新登陆',
+            position: 'top-right'
+          })
+          instance.$router.replace('/login')
+        } else if (response.data.code === 0) {
+          resolve(response)
+        }
+      }).catch(function (error) {
+        if (error.response) {
+          // 请求已发出，但服务器响应的状态码不在 2xx 范围内
+          console.log(error.response.data)
+          console.log(error.response.status)
+          console.log(error.response.headers)
+        } else {
+          instance.$notify({
+            title: '温馨提示',
+            message: '网络故障',
+            position: 'top-right'
+          })
+          console.log(error)
+          // Something happened in setting up the request that triggered an Error
+          console.log('Error', error.message)
+        }
+        console.log(error.config)
+      })
+    })
+  }
+})
 
-Vue.prototype.$axios = api;
+Vue.prototype.$axios = api
+
+Vue.config.productionTip = false
 
 //.....
 let instance =new Vue({
