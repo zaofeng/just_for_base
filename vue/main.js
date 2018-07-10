@@ -1,6 +1,6 @@
 
 import axios from 'axios'
-import qs from 'qs'
+// import qs from 'qs' 看项目需要
 let axiosIns = axios.create({});
 
 const axiosIns = axios.create()
